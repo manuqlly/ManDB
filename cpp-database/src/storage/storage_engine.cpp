@@ -62,6 +62,9 @@ bool StorageEngine::writeData(const std::string& tableName, const std::string& d
     std::memcpy(page->data.data(), data.c_str(), data.length());
     page->is_dirty = true;
     
+    // Log the write operation
+    logManager->logWrite(tableName, data);
+    
     return true;
 }
 

@@ -7,11 +7,11 @@
 
 class Table {
 public:
-    Table() = default;  // Add default constructor
-    Table(const std::string& name); // Constructor
+    Table(const std::string& name);
     void create(const std::vector<std::string>& columns);
     void insert(const std::map<std::string, std::string>& row);
     std::vector<std::map<std::string, std::string>> select() const;
+    const std::vector<std::map<std::string, std::string>>& getRows() const;
 
 private:
     std::string name;

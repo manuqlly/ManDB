@@ -20,3 +20,7 @@ void Table::insert(const std::map<std::string, std::string>& row) {
 std::vector<std::map<std::string, std::string>> Table::select() const {
     return rows;
 }
+
+const std::vector<std::map<std::string, std::string>>& Table::getRows() const {
+    return rows;
+}

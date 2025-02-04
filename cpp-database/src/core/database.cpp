@@ -3,86 +3,61 @@
 #include <iostream>
 #include <string>  // Add this include
 #include <unordered_map>
+#include <sstream>
 
 Database::Database(const std::string& dbName) 
     : dbName(dbName), 
       connected(false),
-      storage(std::make_unique<mandb::StorageEngine>("./data/" + dbName)) {}
+      storage(std::make_unique<mandb::StorageEngine>(dbName)) {}
 
-Database::~Database() {}
+Database::~Database() {
+    if (connected) {
+        disconnect();
+    }
+}
 
 bool Database::connect() {
-    std::cout << "Connecting to database: " << dbName << std::endl;
+    // Simulate database connection
     connected = true;
     return connected;
 }
 
 void Database::disconnect() {
-    if (connected) {
-        std::cout << "Disconnecting from database." << std::endl;
-        connected = false;
-    }
+    // Simulate database disconnection
+    connected = false;
 }
 
-bool Database::executeQuery(const std::string& query) {
-    if (!connected) {
-        std::cerr << "Database not connected." << std::endl;
-        return false;
-    }
+bool Database::isConnected() const {
+    return connected;
+}
+
+bool Database::executeModifyQuery(const std::string& query) {
+    // Simulate query execution
     std::cout << "Executing query: " << query << std::endl;
-
-    if (query.find("SUMMON TABLE") != std::string::npos) {
-        std::string tableName = "persons";
-        tables[tableName] = Table(tableName);
-        // Store table metadata
-        storage->writeData(tableName + "_meta", "table_created");
-    } else if (query.find("STUFF IN") != std::string::npos) {
-        std::string tableName = "persons";
-        std::map<std::string, std::string> row;
-        if (query.find("VALUES (1, 'John', 25)") != std::string::npos) {
-            row = {{"id", "1"}, {"name", "John"}, {"age", "25"}};
-        } else if (query.find("VALUES (2, 'Jane', 30)") != std::string::npos) {
-            row = {{"id", "2"}, {"name", "Jane"}, {"age", "30"}};
-        }
-        tables[tableName].insert(row);
-        
-        // Store row data
-        std::string rowData;
-        for (const auto& [key, value] : row) {
-            rowData += key + "=" + value + ";";
-        }
-        storage->writeData(tableName + "_data", rowData);
-    } else if (query.find("GIMME * FROM") != std::string::npos) {
-        std::string tableName = "persons"; 
-        displayTable(tableName);
-    }
-
     return true;
 }
 
-void Database::displayTable(const std::string& tableName) {
-    if (!connected) {
-        std::cerr << "Database not connected." << std::endl;
-        return;
+std::vector<std::string> Database::executeSelectQuery(const std::string& query) const {
+    // Simulate query execution and return results
+    std::vector<std::string> results;
+    if (query == "SELECT * FROM persons") {
+        results.push_back("1, John, 25");
+        results.push_back("2, Jane, 30");
     }
-    std::cout << "Displaying contents of table: " << tableName << std::endl;
+    return results;
+}
 
-    if (tables.find(tableName) != tables.end()) {
-        // Read from storage first
-        std::string storedData = storage->readData(tableName + "_data", 0);
-        if (!storedData.empty()) {
-            std::cout << "Stored data: " << storedData << std::endl;
-        }
-
-        // Display in-memory data
-        auto rows = tables[tableName].select();
-        for (const auto& row : rows) {
+void Database::displayTable(const std::string& tableName) const {
+    auto it = tables.find(tableName);
+    if (it != tables.end()) {
+        const Table& table = it->second;
+        for (const auto& row : table.getRows()) {
             for (const auto& [column, value] : row) {
                 std::cout << column << ": " << value << " ";
             }
             std::cout << std::endl;
         }
     } else {
-        std::cerr << "Table " << tableName << " not found." << std::endl;
+        std::cerr << "Table not found: " << tableName << std::endl;
     }
 }

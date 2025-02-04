@@ -22,9 +22,6 @@ public:
     bool validate(const std::string& query);
 
 private:
-    const std::map<std::string, std::string> commandAliases;
-    
-    std::string normalizeCommand(const std::string& cmd);
     bool parseSelect(std::istringstream& stream);
     bool parseInsert(std::istringstream& stream);
     bool parseUpdate(std::istringstream& stream);

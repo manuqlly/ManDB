@@ -7,8 +7,8 @@ void test_database_operations() {
     assert(db.connect());
     
     // Test query execution
-    assert(db.executeQuery("SUMMON TABLE users (id INT, name TEXT)"));
-    assert(db.executeQuery("STUFF IN users (id, name) VALUES (1, 'John')"));
+    assert(db.executeQuery("CREATE TABLE users (id INT, name TEXT)"));
+    assert(db.executeQuery("INSERT INTO users (id, name) VALUES (1, 'John')"));
     
     std::cout << "Database tests passed!\n";
 }

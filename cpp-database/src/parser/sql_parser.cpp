@@ -4,75 +4,46 @@
 #include <algorithm>
 #include <regex>
 
-SQLParser::SQLParser() : commandAliases{
-    {"GIMME", "SELECT"},
-    {"STUFF IN", "INSERT INTO"},
-    {"MORPH", "UPDATE"}, 
-    {"VANISH", "DELETE"},
-    {"SUMMON TABLE", "CREATE TABLE"}
-} {}
+SQLParser::SQLParser() {}
 
 bool SQLParser::validate(const std::string& query) {
-    std::regex summonPattern(
-        R"(SUMMON TABLE (\w+) \(((?:\w+ (?:INT|TEXT)(?:,\s*)?)+)\))",
+    std::regex createPattern(
+        R"(CREATE TABLE (\w+) \(((?:\w+ (?:INT|TEXT)(?:,\s*)?)+)\))",
         std::regex_constants::icase
     );
 
-    if (std::regex_match(query, summonPattern)) {
+    if (std::regex_match(query, createPattern)) {
         return true;
     }
     
     std::istringstream stream(query);
     std::string cmd;
     stream >> cmd;
-    cmd = normalizeCommand(cmd);
+    std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::toupper);
     
-    std::cout << "Normalized command: " << cmd << std::endl; // Debugging output
+    std::cout << "Command: " << cmd << std::endl; // Debugging output
     
     return (cmd == "SELECT" || cmd == "INSERT INTO" || 
             cmd == "UPDATE" || cmd == "DELETE" ||
             cmd == "CREATE TABLE");
 }
 
-std::string SQLParser::normalizeCommand(const std::string& cmd) {
-    std::string upperCmd = cmd;
-    std::transform(upperCmd.begin(), upperCmd.end(), 
-                  upperCmd.begin(), ::toupper);
-    
-    auto it = commandAliases.find(upperCmd);
-    std::string normalizedCmd = (it != commandAliases.end()) ? it->second : upperCmd;
-    
-    std::cout << "Original command: " << cmd << ", Normalized command: " << normalizedCmd << std::endl; // Debugging output
-    
-    return normalizedCmd;
-}
-
 bool SQLParser::parse(const std::string& sql) {
     std::istringstream stream(sql);
     std::string command;
     
-    // Handle two-word commands
-    std::string word1, word2;
-    stream >> word1;
-    std::string upperWord1 = word1;
-    std::transform(upperWord1.begin(), upperWord1.end(), upperWord1.begin(), ::toupper);
-    
-    if (upperWord1 == "STUFF" || upperWord1 == "SUMMON") {
-        stream >> word2;
-        command = normalizeCommand(word1 + " " + word2);
-    } else {
-        command = normalizeCommand(word1);
-    }
+    stream >> command;
+    std::transform(command.begin(), command.end(), command.begin(), ::toupper);
 
     if (command == "SELECT") {
         return parseSelect(stream);
-    } else if (command == "INSERT") {
+    } else if (command == "INSERT INTO") {
         return parseInsert(stream);
     } else if (command == "UPDATE") {
         return parseUpdate(stream);
     } else if (command == "DELETE") {
         return parseDelete(stream);
-    } else if (command == "CREATE") {
+    } else if (command == "CREATE TABLE") {
         return parseCreate(stream);
     } else {
         std::cerr << "Unknown command: " << command << std::endl;

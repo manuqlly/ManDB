@@ -6,19 +6,19 @@ void test_basic_queries() {
     SQLParser parser;
     
     // Test CREATE TABLE
-    assert(parser.validate("SUMMON TABLE users (id INT, name TEXT)"));
+    assert(parser.validate("CREATE TABLE users (id INT, name TEXT)"));
     
     // Test INSERT
-    assert(parser.validate("STUFF IN users (id, name) VALUES (1, 'John')"));
+    assert(parser.validate("INSERT INTO users (id, name) VALUES (1, 'John')"));
     
     // Test SELECT
-    assert(parser.validate("GIMME * FROM users"));
+    assert(parser.validate("SELECT * FROM users"));
     
     // Test UPDATE
-    assert(parser.validate("MORPH users SET name = 'Jane' WHERE id = 1"));
+    assert(parser.validate("UPDATE users SET name = 'Jane' WHERE id = 1"));
     
     // Test DELETE
-    assert(parser.validate("VANISH FROM users WHERE id = 1"));
+    assert(parser.validate("DELETE FROM users WHERE id = 1"));
     
     std::cout << "Basic query tests passed!\n";
 }
