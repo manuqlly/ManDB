@@ -3,24 +3,33 @@
 
 #include <string>
 #include <vector>
+#include <map>
+
+struct SQLStatement {
+    std::string command;
+    std::string table;
+    std::vector<std::string> columns;
+    std::vector<std::string> values;
+    std::string whereClause;
+};
 
 class SQLParser {
 public:
     SQLParser();
-    ~SQLParser();
+    ~SQLParser() = default;
 
-    // Parses a SQL query and returns the components
-    std::vector<std::string> parse(const std::string& query);
-
-    // Validates the SQL query syntax
+    bool parse(const std::string& query);
     bool validate(const std::string& query);
 
 private:
-    // Helper methods for parsing different SQL commands
-    void parseSelect(const std::string& query);
-    void parseInsert(const std::string& query);
-    void parseUpdate(const std::string& query);
-    void parseDelete(const std::string& query);
+    const std::map<std::string, std::string> commandAliases;
+    
+    std::string normalizeCommand(const std::string& cmd);
+    bool parseSelect(std::istringstream& stream);
+    bool parseInsert(std::istringstream& stream);
+    bool parseUpdate(std::istringstream& stream);
+    bool parseDelete(std::istringstream& stream);
+    bool parseCreate(std::istringstream& stream);
 };
 
 #endif // SQL_PARSER_H

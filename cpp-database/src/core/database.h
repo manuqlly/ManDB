@@ -11,10 +11,11 @@ public:
     bool connect();
     void disconnect();
     bool executeQuery(const std::string& query);
+    void displayTable(const std::string& tableName); // Add this line
 
 private:
     std::string dbName;
-    // Add any other necessary private members
+    bool connected;
 };
 
 #endif // DATABASE_H

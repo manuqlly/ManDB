@@ -1,22 +1,21 @@
 #include "storage_engine.h"
 #include "page_cache.h"
 #include "log_manager.h"
+#include "crc32.h"
 #include <fstream>
 #include <map>
 #include <mutex>
 #include <shared_mutex>
 #include <filesystem>
-#include <crc32.h> // For checksum verification
+#include <cstring>
 
 namespace mandb {
 
-// Constructor implementation
-StorageEngine::StorageEngine(const string& dir) 
+StorageEngine::StorageEngine(const std::string& dir) 
     : data_directory(dir), log_manager(new LogManager()) {
     initializeStorage();
 }
 
-// Destructor implementation
 StorageEngine::~StorageEngine() {
     for (auto& [table_name, cache] : page_cache) {
         auto pages = cache->getAllPages();
@@ -30,9 +29,8 @@ StorageEngine::~StorageEngine() {
     delete log_manager;
 }
 
-// Method implementations
-bool StorageEngine::writeData(const string& table_name, const string& data) {
-    unique_lock<shared_mutex> write_lock(access_mutex);
+bool StorageEngine::writeData(const std::string& table_name, const std::string& data) {
+    std::unique_lock<std::shared_mutex> write_lock(access_mutex);
     try {
         log_manager->beginTransaction();
         log_manager->logWrite(table_name, data);
@@ -40,9 +38,9 @@ bool StorageEngine::writeData(const string& table_name, const string& data) {
         auto page = getPageForWrite(table_name);
         if (!page) return false;
 
-        memcpy(page->data, data.c_str(), data.size());
+        std::memcpy(page->data.data(), data.c_str(), std::min(data.size(), PAGE_SIZE));
         page->is_dirty = true;
-        page->checksum = calculateChecksum(page->data, PAGE_SIZE);
+        page->checksum = calculateChecksum(page->data.data(), PAGE_SIZE);
 
         log_manager->commitTransaction();
         
@@ -52,19 +50,19 @@ bool StorageEngine::writeData(const string& table_name, const string& data) {
 
         return true;
     }
-    catch (const exception& e) {
+    catch (const std::exception& e) {
         log_manager->rollbackTransaction();
         return false;
     }
 }
 
-string StorageEngine::readData(const string& table_name, uint32_t page_id) {
-    shared_lock<shared_mutex> read_lock(access_mutex);
+std::string StorageEngine::readData(const std::string& table_name, uint32_t page_id) {
+    std::shared_lock<std::shared_mutex> read_lock(access_mutex);
     
     auto page = getPageFromCache(table_name, page_id);
     if (page) {
         if (verifyChecksum(page)) {
-            return string(page->data);
+            return std::string(page->data.data());
         }
     }
 
@@ -72,14 +70,14 @@ string StorageEngine::readData(const string& table_name, uint32_t page_id) {
 }
 
 void StorageEngine::initializeStorage() {
-    if (!filesystem::exists(data_directory)) {
-        filesystem::create_directories(data_directory);
+    if (!std::filesystem::exists(data_directory)) {
+        std::filesystem::create_directories(data_directory);
     }
     log_manager->initialize(data_directory + "/wal");
 }
 
 bool StorageEngine::verifyChecksum(const Page* page) {
-    return page->checksum == calculateChecksum(page->data, PAGE_SIZE);
+    return page->checksum == calculateChecksum(page->data.data(), PAGE_SIZE);
 }
 
 uint32_t StorageEngine::calculateChecksum(const char* data, size_t size) {
@@ -89,9 +87,9 @@ uint32_t StorageEngine::calculateChecksum(const char* data, size_t size) {
 void StorageEngine::flushPage(Page* page) {
     if (!page->is_dirty) return;
     
-    string filepath = getPageFilePath(page->page_id);
-    ofstream file(filepath, ios::binary);
-    file.write(page->data, PAGE_SIZE);
+    std::string filepath = getPageFilePath(page->page_id);
+    std::ofstream file(filepath, std::ios::binary);
+    file.write(page->data.data(), PAGE_SIZE);
     file.close();
     
     page->is_dirty = false;
@@ -105,7 +103,7 @@ bool StorageEngine::shouldFlushToDisk() {
     return dirty_count > CACHE_SIZE / 2;
 }
 
-Page* StorageEngine::getPageForWrite(const std::string& table_name) {
+StorageEngine::Page* StorageEngine::getPageForWrite(const std::string& table_name) {
     if (page_cache.find(table_name) == page_cache.end()) {
         page_cache[table_name] = std::make_shared<PageCache>(CACHE_SIZE);
     }
@@ -128,9 +126,9 @@ std::string StorageEngine::readFromDisk(const std::string& table_name, uint32_t 
         return "";
     }
     
-    char buffer[PAGE_SIZE];
-    file.read(buffer, PAGE_SIZE);
-    return std::string(buffer, file.gcount());
+    std::array<char, PAGE_SIZE> buffer;
+    file.read(buffer.data(), PAGE_SIZE);
+    return std::string(buffer.data(), static_cast<std::streamsize>(file.gcount()));
 }
 
 uint32_t StorageEngine::getNextPageId(const std::string& table_name) {
@@ -150,4 +148,4 @@ uint32_t StorageEngine::getNextPageId(const std::string& table_name) {
     return next_id;
 }
 
-}
+} // namespace mandb
