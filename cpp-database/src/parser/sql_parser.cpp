@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <regex>
 
 SQLParser::SQLParser() : commandAliases{
     {"GIMME", "SELECT"},
@@ -12,6 +13,15 @@ SQLParser::SQLParser() : commandAliases{
 } {}
 
 bool SQLParser::validate(const std::string& query) {
+    std::regex summonPattern(
+        R"(SUMMON TABLE (\w+) \(((?:\w+ (?:INT|TEXT)(?:,\s*)?)+)\))",
+        std::regex_constants::icase
+    );
+
+    if (std::regex_match(query, summonPattern)) {
+        return true;
+    }
+    
     std::istringstream stream(query);
     std::string cmd;
     stream >> cmd;

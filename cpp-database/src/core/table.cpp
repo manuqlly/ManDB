@@ -1,22 +1,22 @@
 #include "table.h"
-#include <vector>
-#include <string>
 #include <iostream>
 
-Table::Table(const std::string& name) : tableName(name) {}
+Table::Table(const std::string& name) : name(name) {}
 
-void Table::create() {
-    // Logic to create a table in the database
-    std::cout << "Table " << tableName << " created." << std::endl;
+void Table::create(const std::vector<std::string>& columns) {
+    this->columns = columns;
+    std::cout << "Table " << name << " created with columns: ";
+    for (const auto& column : columns) {
+        std::cout << column << " ";
+    }
+    std::cout << std::endl;
 }
 
-void Table::insert(const std::vector<std::string>& row) {
-    // Logic to insert a row into the table
+void Table::insert(const std::map<std::string, std::string>& row) {
     rows.push_back(row);
-    std::cout << "Row inserted into table " << tableName << "." << std::endl;
+    std::cout << "Row inserted into table " << name << "." << std::endl;
 }
 
-std::vector<std::vector<std::string>> Table::select() const {
-    // Logic to retrieve all rows from the table
+std::vector<std::map<std::string, std::string>> Table::select() const {
     return rows;
 }

@@ -1,27 +1,24 @@
 #pragma once
-#include <list>
+#include "storage/storage_engine.h"
 #include <unordered_map>
-#include "storage_engine.h"
+#include <memory>
+#include <list>
+#include <vector>
 
 namespace mandb {
 
 class PageCache {
 public:
-    PageCache(size_t capacity);
-    
-    StorageEngine::Page* get(uint32_t page_id);
+    explicit PageCache(size_t capacity);
     void put(StorageEngine::Page* page);
-    void remove(uint32_t page_id);
-    void clear();
+    StorageEngine::Page* get(unsigned int pageNumber);
     size_t getDirtyPageCount() const;
     std::vector<StorageEngine::Page*> getAllPages() const;
 
 private:
     size_t capacity;
-    std::list<StorageEngine::Page*> lru_list;
-    std::unordered_map<uint32_t, std::list<StorageEngine::Page*>::iterator> cache_map;
-    
-    void evict();
+    std::unordered_map<unsigned int, std::unique_ptr<StorageEngine::Page>> pages;
+    std::list<unsigned int> lru_list;
 };
 
-}
+} // namespace mandb

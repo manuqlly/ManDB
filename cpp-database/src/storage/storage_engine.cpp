@@ -1,79 +1,82 @@
-#include "storage_engine.h"
-#include "page_cache.h"
-#include "log_manager.h"
-#include "crc32.h"
+#include "storage/storage_engine.h"
+#include "storage/page_cache.h"
+#include "storage/log_manager.h"
 #include <fstream>
+#include <stdexcept>
 #include <map>
 #include <mutex>
 #include <shared_mutex>
 #include <filesystem>
 #include <cstring>
 
+// CRC32 table
+static unsigned int crc32_table[256];
+static bool crc32_initialized = false;
+
+// Initialize CRC32 table
+void init_crc32_table() {
+    if (crc32_initialized) return;
+    
+    for (unsigned int i = 0; i < 256; i++) {
+        unsigned int crc = i;
+        for (unsigned int j = 0; j < 8; j++) {
+            crc = (crc >> 1) ^ (0xEDB88320 & -(crc & 1));
+        }
+        crc32_table[i] = crc;
+    }
+    crc32_initialized = true;
+}
+
+// CRC32 implementation
+unsigned int crc32(const char* data, size_t length) {
+    init_crc32_table();
+    unsigned int crc = 0xFFFFFFFF;
+    
+    for (size_t i = 0; i < length; i++) {
+        crc = (crc >> 8) ^ crc32_table[(crc & 0xFF) ^ static_cast<unsigned char>(data[i])];
+    }
+    
+    return ~crc;
+}
+
 namespace mandb {
 
-StorageEngine::StorageEngine(const std::string& dir) 
-    : data_directory(dir), log_manager(new LogManager()) {
+StorageEngine::StorageEngine(const std::string& dbPath) 
+    : dbPath(dbPath), data_directory("./data/" + dbPath) {  // Initialize data_directory
+    pageCache = std::make_unique<PageCache>(1000);
+    logManager = std::make_unique<LogManager>();
     initializeStorage();
 }
 
-StorageEngine::~StorageEngine() {
-    for (auto& [table_name, cache] : page_cache) {
-        auto pages = cache->getAllPages();
-        for (auto page : pages) {
-            if (page->is_dirty) {
-                flushPage(page);
-            }
-        }
-    }
-    page_cache.clear();
-    delete log_manager;
+StorageEngine::~StorageEngine() = default;
+
+StorageEngine::Page* StorageEngine::getPageFromCache(const std::string& tableName, unsigned int pageNumber) {
+    return pageCache->get(pageNumber);
 }
 
-bool StorageEngine::writeData(const std::string& table_name, const std::string& data) {
-    std::unique_lock<std::shared_mutex> write_lock(access_mutex);
-    try {
-        log_manager->beginTransaction();
-        log_manager->logWrite(table_name, data);
-
-        auto page = getPageForWrite(table_name);
-        if (!page) return false;
-
-        std::memcpy(page->data.data(), data.c_str(), std::min(data.size(), PAGE_SIZE));
-        page->is_dirty = true;
-        page->checksum = calculateChecksum(page->data.data(), PAGE_SIZE);
-
-        log_manager->commitTransaction();
-        
-        if (shouldFlushToDisk()) {
-            flushPage(page);
-        }
-
-        return true;
-    }
-    catch (const std::exception& e) {
-        log_manager->rollbackTransaction();
-        return false;
-    }
-}
-
-std::string StorageEngine::readData(const std::string& table_name, uint32_t page_id) {
-    std::shared_lock<std::shared_mutex> read_lock(access_mutex);
+bool StorageEngine::writeData(const std::string& tableName, const std::string& data) {
+    auto* page = getPageForWrite(tableName);
+    if (!page) return false;
     
-    auto page = getPageFromCache(table_name, page_id);
-    if (page) {
-        if (verifyChecksum(page)) {
-            return std::string(page->data.data());
-        }
-    }
+    // Copy data to page
+    std::memcpy(page->data.data(), data.c_str(), data.length());
+    page->is_dirty = true;
+    
+    return true;
+}
 
-    return readFromDisk(table_name, page_id);
+std::string StorageEngine::readData(const std::string& tableName, unsigned int offset) {
+    auto* page = getPageFromCache(tableName, offset);
+    if (!page) return "";
+    
+    return std::string(page->data.data());
 }
 
 void StorageEngine::initializeStorage() {
     if (!std::filesystem::exists(data_directory)) {
         std::filesystem::create_directories(data_directory);
     }
-    log_manager->initialize(data_directory + "/wal");
+    logManager->initialize(data_directory + "/wal");
 }
 
 bool StorageEngine::verifyChecksum(const Page* page) {
@@ -85,32 +88,23 @@ uint32_t StorageEngine::calculateChecksum(const char* data, size_t size) {
 }
 
 void StorageEngine::flushPage(Page* page) {
-    if (!page->is_dirty) return;
-    
     std::string filepath = getPageFilePath(page->page_id);
     std::ofstream file(filepath, std::ios::binary);
+    if (!file) {
+        throw std::runtime_error("Failed to open file for writing: " + filepath);
+    }
     file.write(page->data.data(), PAGE_SIZE);
-    file.close();
-    
     page->is_dirty = false;
 }
 
 bool StorageEngine::shouldFlushToDisk() {
-    size_t dirty_count = 0;
-    for (auto& [_, cache] : page_cache) {
-        dirty_count += cache->getDirtyPageCount();
-    }
-    return dirty_count > CACHE_SIZE / 2;
+    return pageCache->getDirtyPageCount() > CACHE_SIZE / 2;
 }
 
 StorageEngine::Page* StorageEngine::getPageForWrite(const std::string& table_name) {
-    if (page_cache.find(table_name) == page_cache.end()) {
-        page_cache[table_name] = std::make_shared<PageCache>(CACHE_SIZE);
-    }
-    
     uint32_t page_id = getNextPageId(table_name);
     auto page = new Page{page_id};
-    page_cache[table_name]->put(page);
+    pageCache->put(page);
     return page;
 }
 
